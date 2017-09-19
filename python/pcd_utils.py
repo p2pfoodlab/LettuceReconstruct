@@ -1,0 +1,40 @@
+import pypcd as pcd
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as pl
+
+"""
+def getPC(filename):
+   ps=pcd.point_cloud_from_path(filename).pc_data
+   pc=np.array([[p[0],p[1],p[2],p[3]] for p in ps if not(np.isnan(p[0]))])
+   col=pc[:,3]#.astype(np.int)
+
+   b=col & 255
+   g=(col>>8) & 255
+   r=(col>>16) & 255
+   col=np.array([r,g,b]).T
+   return np.hstack([pc[:,:3],col])
+"""
+
+def getPC(filename):
+   ps=pcd.point_cloud_from_path(filename).pc_data
+   idx=np.where(((np.isnan(ps["x"])==False)*ps["rgb"]))
+   pc=np.hstack([np.array([ps[idx]["x"],ps[idx]["y"],ps[idx]["z"]]).T, ps[idx]["rgb"].view((np.uint8,4))[:,:3]])
+   return pc
+
+
+def plot3d(pcds, colors=["k"], svg=None):
+   fig = pl.figure()
+   ax = fig.add_subplot(111, projection='3d')
+
+   for i,p in enumerate(pcds):
+      if colors:
+         ax.scatter(p[:,0], p[:,1], p[:,2], c=colors[i],s=.1,alpha=.2,depthshade=False)
+      else: ax.scatter(p[:,0], p[:,1], p[:,2], c=p[:,3:][:,::-1]/255.,s=.1,alpha=.2,depthshade=False)
+
+   ax.set_xlim([-250,250])
+   ax.set_ylim([-250,250])
+   ax.set_zlim([0,400])
+   ax.view_init(-80,50)
+   if svg: pl.savefig(svg, bbox_inches="tight")
+   else: pl.show()
