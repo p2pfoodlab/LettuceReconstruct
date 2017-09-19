@@ -1,0 +1,197 @@
+#include <boost/make_shared.hpp>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/point_representation.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/common/transforms.h>
+
+#include <pcl/filters/filter.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/features/normal_3d.h>
+
+#include <pcl/registration/icp.h>
+#include <pcl/registration/icp_nl.h>
+#include <pcl/registration/transforms.h>
+
+#include <stdlib.h>
+#include <iostream>
+#include <sstream>
+ 
+using pcl::visualization::PointCloudColorHandlerGenericField;
+using pcl::visualization::PointCloudColorHandlerCustom;
+
+using namespace std;
+
+typedef pcl::PointXYZRGB PointT;
+typedef pcl::PointCloud<PointT> PointCloud;
+typedef PointCloud::Ptr PointCloudPtr;
+typedef pcl::PointNormal PointNormalT;
+typedef pcl::PointCloud<PointNormalT> PointCloudWithNormals;
+
+double FOCAL = 570.3;
+double MM_PER_M = 1000;
+int WIDTH = 240;
+int HEIGHT = 320;
+double DEPTH_THRESHOLD = 400;   
+double X_THRESHOLD = 1000;   
+double Y_THRESHOLD = 1000;   
+const float normal_estimation_search_radius = 1.0f;
+
+int vp_1, vp_2;
+
+
+class MyPointRepresentation : public pcl::PointRepresentation <PointNormalT>
+{
+  using pcl::PointRepresentation<PointNormalT>::nr_dimensions_;
+public:
+  MyPointRepresentation ()
+  {
+    // Define the number of dimensions
+    nr_dimensions_ = 4;
+  }
+
+  // Override the copyToFloatArray method to define our feature vector
+  virtual void copyToFloatArray (const PointNormalT &p, float * out) const
+  {
+    // < x, y, z, curvature >
+    out[0] = p.x;
+    out[1] = p.y;
+    out[2] = p.z;
+    out[3] = p.curvature;
+  }
+};
+
+
+void downsample (PointCloudPtr &points, float leaf_size, PointCloudPtr &downsampled_out)
+{
+  pcl::VoxelGrid<PointT> vox_grid;
+  vox_grid.setLeafSize (leaf_size, leaf_size, leaf_size);
+  vox_grid.setInputCloud (points);
+  vox_grid.filter (*downsampled_out);
+}
+
+
+void saveTransform (const std::string &file, const Eigen::Matrix4f &transform)
+{
+  ofstream ofs;
+  ofs.open (file.c_str (), ios::trunc | ios::binary);
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < 4; ++j)
+      ofs.write (reinterpret_cast<const char*>(&transform (i, j)), sizeof (float));  
+  ofs.close ();
+}
+
+void pairAlign (const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt, PointCloud::Ptr output, Eigen::Matrix4f &final_transform, bool downsample)
+{
+  //Downsample
+  PointCloud::Ptr src (new PointCloud);
+  PointCloud::Ptr tgt (new PointCloud);
+  pcl::VoxelGrid<PointT> grid;
+  if (downsample)
+  {
+    grid.setLeafSize (1, 1, 1);
+    grid.setInputCloud (cloud_src);
+    grid.filter (*src);
+
+    grid.setInputCloud (cloud_tgt);
+    grid.filter (*tgt);
+  }
+  else
+  {
+    src = cloud_src;
+    tgt = cloud_tgt;
+  }
+
+  //get Normals
+  PointCloudWithNormals::Ptr points_with_normals_src (new PointCloudWithNormals);
+  PointCloudWithNormals::Ptr points_with_normals_tgt (new PointCloudWithNormals);
+
+  pcl::NormalEstimation<PointT, PointNormalT> norm_est;
+  pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT> ());
+  norm_est.setSearchMethod (tree);
+  norm_est.setKSearch (10);
+  
+  norm_est.setInputCloud (src);
+  norm_est.compute (*points_with_normals_src);
+  pcl::copyPointCloud (*src, *points_with_normals_src);
+
+  norm_est.setInputCloud (tgt);
+  norm_est.compute (*points_with_normals_tgt);
+  pcl::copyPointCloud (*tgt, *points_with_normals_tgt);
+
+  MyPointRepresentation point_representation;
+  float alpha[4] = {1.0, 1.0, 1.0, 1.0};
+  point_representation.setRescaleValues (alpha);
+
+  //Register
+  pcl::IterativeClosestPointNonLinear<PointNormalT, PointNormalT> reg;
+  reg.setTransformationEpsilon (1e-8);
+  reg.setMaxCorrespondenceDistance (20);  
+  reg.setPointRepresentation (boost::make_shared<const MyPointRepresentation> (point_representation));
+  reg.setInputSource (points_with_normals_src);
+  reg.setInputTarget (points_with_normals_tgt);
+
+  // Run the same optimization in a loop and visualize the results
+  Eigen::Matrix4f Ti = Eigen::Matrix4f::Identity (), prev, sourceToTarget;
+  PointCloudWithNormals::Ptr reg_result = points_with_normals_src;
+  reg.setMaximumIterations (5);
+  for (int i = 0; i < 15; ++i)
+  {
+    //PCL_INFO ("Iteration Nr. %d.\n", i);
+    points_with_normals_src = reg_result;
+
+    // Estimate
+    reg.setInputSource (points_with_normals_src);
+    reg.align (*reg_result);
+
+    Ti = reg.getFinalTransformation () * Ti;
+
+    if (fabs ((reg.getLastIncrementalTransformation () - prev).sum ()) < reg.getTransformationEpsilon ())
+    {
+      reg.setMaxCorrespondenceDistance (reg.getMaxCorrespondenceDistance () - 0.01);
+      //cout<<reg.getMaxCorrespondenceDistance ()<<endl;
+    }
+    prev = reg.getLastIncrementalTransformation ();
+    cout<<i<<" "<<reg.getFitnessScore()<<endl;
+ 
+  }
+
+  sourceToTarget = Ti;//.inverse();
+  pcl::transformPointCloud (*cloud_src, *output, sourceToTarget);
+  final_transform = sourceToTarget;
+  
+}
+
+int main (int argc, char** argv)
+{
+   int i1=atoi(argv[2]);
+   int i2=atoi(argv[3]);
+
+   PointCloudPtr pcd1 (new PointCloud);
+   PointCloudPtr pcd2 (new PointCloud);
+   PointCloudPtr pcd3 (new PointCloud);
+
+   ostringstream pcdfile1;
+   pcdfile1<< argv[1] << "/filtered/" << setfill('0') << setw(3) << i1 <<".pcd";
+   pcl::io::loadPCDFile<PointT> (pcdfile1.str(), *pcd1);
+   
+   ostringstream pcdfile2;
+   pcdfile2<< argv[1] << "/filtered/" << setfill('0') << setw(3) << i2 <<".pcd";
+   pcl::io::loadPCDFile<PointT> (pcdfile2.str(), *pcd2);
+      
+   ostringstream pcdfile3;
+   pcdfile3<< argv[1] << "/transform/" << setfill('0') << setw(3) << i1 << "_" << setfill('0') << setw(3) << i2 <<".pcd";
+   
+   Eigen::Matrix4f pairTransform;
+   pairAlign (pcd1, pcd2, pcd3, pairTransform, true);
+      
+   std::stringstream sT;
+   sT << argv[1] <<"/transform/"<< setfill('0') << setw(3) << i1 <<"_"<< setfill('0') << setw(3) << i2 << ".transform";
+   saveTransform (sT.str(), pairTransform);
+   cout<<sT.str()<<endl;
+      
+   pcl::io::savePCDFileASCII (pcdfile3.str(), *pcd3);
+    
+}
