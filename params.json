@@ -1,0 +1,11 @@
+{"selector" :{"planecut": 1, "box": 1}, 
+ "prefilter":{"ON": 1, 
+              "bifil_sigR": 25, 
+              "bifil_sigS": 2, 
+              "SOR": {"N": 30, "th": 1}
+             },
+ "reg"      : {"file"      : "raw",
+               "downsample": 1,
+               "Nreg"      : 10  
+              } 
+}
