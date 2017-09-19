@@ -104,7 +104,12 @@ void loadPCD (NpyArray vert_arr, NpyArray sync_arr, Mat confimg, PointCloud& poi
         
     }
   }
-}  
+
+
+  std::vector<int> indices;
+  pcl::removeNaNFromPointCloud(pointcloud, pointcloud, indices);
+  
+}
 
 void bilfil (PointCloud& pcloud, PointCloud &output, float bifil_sigR, float bifil_sigS)
 {
@@ -161,14 +166,13 @@ void mls_smoothing(PointCloud& pcloud, PointCloudWithNormals& mls_points)
 
 int main (int argc, char** argv)
 {
-   string data_folder = argv[1];
-   string svg=argv[2];
-   int k=atoi(argv[3]);
-   //string data_folder = "/home/kodda/Dropbox/p2pflab/data/2017/";
-   
+   int k=atoi(argv[4]);
+   string data_folder = "/home/kodda/Dropbox/p2pflab/data/2017/";
+   string svg="/home/kodda/Dropbox/p2pflab/LettuceScan/PCD_proc/";
+
    Json::Value params;      
    ostringstream pfile;
-   pfile<< svg << "/params.json";
+   pfile<< svg<< argv[3] << "/params.json";
    ifstream paramsFile(pfile.str().c_str());
 
    Json::Reader reader;
@@ -176,44 +180,21 @@ int main (int argc, char** argv)
    cout<< pfile.str() <<endl;
   
    cout<<"Loading..."; 
-   cout<<data_folder<<"...";
+   cout<<data_folder<<argv[1]<<"/"<<argv[2]<<"...";
 
-   NpyArray vert_arr; 
-   NpyArray sync_arr;
-   Mat confimg;
-
-   ostringstream vertfile;
-   vertfile<<data_folder<<"/vert-"<<setfill('0')<< setw(3)<<k<<".npy";
-   vert_arr = npy_load(vertfile.str());
-   cout<<vertfile.str()<<endl;
-
-   ostringstream syncfile;
-   syncfile<<data_folder<<"/sync-"<<setfill('0')<< setw(3)<<k<<".npy";
-   sync_arr = npy_load(syncfile.str());
-   //cout<<syncfile.str()<<endl;
-   
-   ostringstream conffile;
-   conffile<<data_folder<<"/confidence-"<<setfill('0')<< setw(3)<<k<<".png";
-   confimg = imread (conffile.str(), 0);   
-   //cout<<conffile.str()<<endl;
      
    PointCloud pcloud;
-   loadPCD (vert_arr, sync_arr, confimg, pcloud, params["selector"]["box"].asBool(), params["selector"]["planecut"].asBool());
-   cout<<"done"<<endl;
-   vert_arr.destruct();
-   sync_arr.destruct();
-
-   ostringstream pcdfile_raw;
-   pcdfile_raw << svg << "/raw/" << setfill('0') << setw(3) << k <<".pcd";
-
-   pcl::io::savePCDFileASCII (pcdfile_raw.str(), pcloud);
+   
+   ostringstream pcdfile;
+   pcdfile2<< argv[1] << "/" << params["reg"]["file"].asString() << "/" << setfill('0') << setw(3) << k <<".pcd";
+   pcl::io::loadPCDFile<PointT> (pcdfile.str(), *pcd);
 
    if (params["prefilter"]["ON"].asBool()){
       cout<< "filtering" <<endl;
       prefilters(pcloud, params["prefilter"]["bifil_sigR"].asFloat(), params["prefilter"]["bifil_sigS"].asFloat(),  params["prefilter"]["sor"]["N"].asInt(), params["prefilter"]["sor"]["th"].asFloat());   
 
       ostringstream pcdfile_fil;
-      pcdfile_fil<< svg << "/filtered/" << setfill('0') << setw(3) << k <<".pcd";
+      pcdfile_fil<< svg <<  argv[3] << "/filtered/" << setfill('0') << setw(3) << k <<".pcd";
       cout<<pcdfile_fil.str()<<endl;
       pcl::io::savePCDFileASCII (pcdfile_fil.str(), pcloud);
    }
