@@ -4,7 +4,7 @@
               "bifil_sigS": 2, 
               "SOR": {"N": 30, "th": 1}
              },
- "reg"      : {"file"      : "raw",
+ "reg"      : {"file"      : "filtered",
                "downsample": 1,
                "Nreg"      : 10  
               } 

@@ -157,7 +157,8 @@ void pairAlign (const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt
       //cout<<reg.getMaxCorrespondenceDistance ()<<endl;
     }
     prev = reg.getLastIncrementalTransformation ();
-    cout<<i<<" "<<reg.getFitnessScore()<<endl;
+    //cout<<i<<" "<<reg.getFitnessScore()<<endl;
+    cout<<reg.getFitnessScore()<<endl;
  
   }
 
@@ -171,11 +172,11 @@ int main (int argc, char** argv)
 {
    int i1=atoi(argv[3])%120;
    int i2=atoi(argv[4])%120;
-   string svg="/home/kodda/Dropbox/p2pflab/LettuceScan/PCD_proc/";
+   string svg=argv[1];
 
    Json::Value params;      
    ostringstream pfile;
-   pfile<< svg<< argv[2] << "/params.json";
+   pfile<< svg<< "/params.json";
    ifstream paramsFile(pfile.str().c_str());
 
    Json::Reader reader;

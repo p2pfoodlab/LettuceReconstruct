@@ -14,23 +14,17 @@
 
 #include <boost/make_shared.hpp>
 #include <pcl/io/pcd_io.h>
-#include <pcl/io/png_io.h>
 #include <pcl/point_cloud.h>
 
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/surface/mls.h>
 
-#include "opencv2/core/core.hpp"
-#include <opencv2/highgui/highgui.hpp>
 #include <stdlib.h>
-#include"cnpy.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <json/json.h> 
 
-using namespace cv;
-using namespace cnpy;
 using namespace std;
 
 typedef pcl::PointXYZRGB PointT;
@@ -55,61 +49,6 @@ struct PCD
 
   PCD() : cloud (new PointCloud) {};
 };
-
-void loadPCD (NpyArray vert_arr, NpyArray sync_arr, Mat confimg, PointCloud& pointcloud, bool box, bool planecut)
-{
-   short* vert=reinterpret_cast<short*>(vert_arr.data);
-   uint8_t* sync=reinterpret_cast<uint8_t*>(sync_arr.data);
-   int s=vert_arr.shape[0]*vert_arr.shape[1];
-   const float bad_point = std::numeric_limits<float>::quiet_NaN();
-   pointcloud.points.resize(confimg.rows*confimg.cols);
- 
-   pointcloud.width=confimg.rows;
-   pointcloud.height=confimg.cols;
-   pointcloud.is_dense=false;
-
-   // convert all the points in the mask into point cloud
-   for (int i = 0; i < confimg.rows; i++)
-   {
-     for (int j = 0; j < confimg.cols; j++)
-     {
-      int confidence = (int)confimg.at<uchar> (i, j);
-      int k=(j+i*vert_arr.shape[1]);
-
-      bool selector=confidence>254;
-      
-      if (box) selector = (selector && vert[3*k+2]<DEPTH_THRESHOLD && vert[3*k]<X_THRESHOLD && vert[3*k+1]<Y_THRESHOLD);
- 
-      if (planecut) selector = (selector && ((vert[3*k]*.32+vert[3*k+1]*1.18+391.9-vert[3*k+2])>100));
-
-      PointT point;
-       
-      if (selector) {   
-        point.x = vert[3*k];
-        point.y = vert[3*k+1];
-        point.z = vert[3*k+2];
-        point.b = sync[3*k];
-        point.g = sync[3*k+1];
-        point.r = sync[3*k+2];
-      }
-      else{
-        point.x = bad_point;
-        point.y = bad_point;
-        point.z = bad_point;
-        //point.b = bad_point;
-        //point.g = bad_point;
-        //point.r = bad_point;
-      } 
-      pointcloud.at(j,i)=point; 
-        
-    }
-  }
-
-
-  std::vector<int> indices;
-  pcl::removeNaNFromPointCloud(pointcloud, pointcloud, indices);
-  
-}
 
 void bilfil (PointCloud& pcloud, PointCloud &output, float bifil_sigR, float bifil_sigS)
 {
@@ -166,13 +105,12 @@ void mls_smoothing(PointCloud& pcloud, PointCloudWithNormals& mls_points)
 
 int main (int argc, char** argv)
 {
-   int k=atoi(argv[4]);
-   string data_folder = "/home/kodda/Dropbox/p2pflab/data/2017/";
-   string svg="/home/kodda/Dropbox/p2pflab/LettuceScan/PCD_proc/";
+   string svg=argv[1];
+   int k=atoi(argv[2]);
 
    Json::Value params;      
    ostringstream pfile;
-   pfile<< svg<< argv[3] << "/params.json";
+   pfile<< svg << "/params.json";
    ifstream paramsFile(pfile.str().c_str());
 
    Json::Reader reader;
@@ -180,23 +118,22 @@ int main (int argc, char** argv)
    cout<< pfile.str() <<endl;
   
    cout<<"Loading..."; 
-   cout<<data_folder<<argv[1]<<"/"<<argv[2]<<"...";
+   cout<<argv[1]<<" ... "<<argv[2]<<"...";
 
      
-   PointCloud pcloud;
+   PointCloud pcd;
    
    ostringstream pcdfile;
-   pcdfile2<< argv[1] << "/" << params["reg"]["file"].asString() << "/" << setfill('0') << setw(3) << k <<".pcd";
-   pcl::io::loadPCDFile<PointT> (pcdfile.str(), *pcd);
+   pcdfile<< argv[1] << "/raw/"<< setfill('0') << setw(3) << k <<".pcd";
+   pcl::io::loadPCDFile<PointT> (pcdfile.str(), pcd);
 
-   if (params["prefilter"]["ON"].asBool()){
-      cout<< "filtering" <<endl;
-      prefilters(pcloud, params["prefilter"]["bifil_sigR"].asFloat(), params["prefilter"]["bifil_sigS"].asFloat(),  params["prefilter"]["sor"]["N"].asInt(), params["prefilter"]["sor"]["th"].asFloat());   
+   cout<< "filtering" <<endl;
+   prefilters(pcd, params["prefilter"]["bifil_sigR"].asFloat(), params["prefilter"]["bifil_sigS"].asFloat(),  params["prefilter"]["sor"]["N"].asInt(), params["prefilter"]["sor"]["th"].asFloat());   
 
-      ostringstream pcdfile_fil;
-      pcdfile_fil<< svg <<  argv[3] << "/filtered/" << setfill('0') << setw(3) << k <<".pcd";
-      cout<<pcdfile_fil.str()<<endl;
-      pcl::io::savePCDFileASCII (pcdfile_fil.str(), pcloud);
-   }
+   ostringstream pcdfile_fil;
+   pcdfile_fil<< argv[1] << "/filtered/" << setfill('0') << setw(3) << k <<".pcd";
+  
+   pcl::io::savePCDFileASCII (pcdfile_fil.str(), pcd);
+  
 
 }

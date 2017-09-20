@@ -15,6 +15,9 @@ add_definitions(${PCL_DEFINITIONS})
 add_executable(cloudgen src/cloudgen.cpp src/cnpy.cpp)
 target_link_libraries(cloudgen ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Jsoncpp_LIBRARY})
 
+add_executable(cloudfilter src/cloudfilter.cpp)
+target_link_libraries(cloudfilter ${PCL_LIBRARIES} ${Jsoncpp_LIBRARY})
+
 add_executable(cloudreg src/cloudreg.cpp)
 target_link_libraries(cloudreg ${PCL_LIBRARIES} ${Jsoncpp_LIBRARY})
 

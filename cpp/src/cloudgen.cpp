@@ -62,11 +62,10 @@ void loadPCD (NpyArray vert_arr, NpyArray sync_arr, Mat confimg, PointCloud& poi
    uint8_t* sync=reinterpret_cast<uint8_t*>(sync_arr.data);
    int s=vert_arr.shape[0]*vert_arr.shape[1];
    const float bad_point = std::numeric_limits<float>::quiet_NaN();
-   pointcloud.points.resize(confimg.rows*confimg.cols);
+   pointcloud.resize(confimg.rows*confimg.cols);
  
-   pointcloud.width=confimg.rows;
-   pointcloud.height=confimg.cols;
-   pointcloud.is_dense=false;
+   pointcloud.width=confimg.cols;
+   pointcloud.height=confimg.rows;
 
    // convert all the points in the mask into point cloud
    for (int i = 0; i < confimg.rows; i++)
@@ -74,7 +73,8 @@ void loadPCD (NpyArray vert_arr, NpyArray sync_arr, Mat confimg, PointCloud& poi
      for (int j = 0; j < confimg.cols; j++)
      {
       int confidence = (int)confimg.at<uchar> (i, j);
-      int k=(j+i*vert_arr.shape[1]);
+      //int k=(i*confimg.cols+j);
+      int k=(j*confimg.rows+i);
 
       bool selector=confidence>254;
       
@@ -96,9 +96,9 @@ void loadPCD (NpyArray vert_arr, NpyArray sync_arr, Mat confimg, PointCloud& poi
         point.x = bad_point;
         point.y = bad_point;
         point.z = bad_point;
-        //point.b = bad_point;
-        //point.g = bad_point;
-        //point.r = bad_point;
+        point.b = sync[3*k];
+        point.g = sync[3*k+1];
+        point.r = sync[3*k+2];
       } 
       pointcloud.at(j,i)=point; 
         
@@ -117,19 +117,18 @@ void bilfil (PointCloud& pcloud, PointCloud &output, float bifil_sigR, float bif
 }
 
 void prefilters(PointCloud& pcloud, float bifil_sigR, float bifil_sigS, int sor_N, float sor_th)
-{
-
-   if (bifil_sigS>0) bilfil (pcloud, pcloud, bifil_sigR, bifil_sigS);
-    
+{    
    pcl::StatisticalOutlierRemoval<PointT> sor;
    sor.setInputCloud (pcloud.makeShared());
    sor.setMeanK (sor_N);
    sor.setStddevMulThresh (sor_th);
    sor.setKeepOrganized (true);
    sor.filter (pcloud);
+   if (bifil_sigS>0) bilfil (pcloud, pcloud, bifil_sigR, bifil_sigS);
 
    std::vector<int> indices;
    pcl::removeNaNFromPointCloud(pcloud, pcloud, indices);
+
 }
 
 void mls_smoothing(PointCloud& pcloud, PointCloudWithNormals& mls_points)
@@ -173,7 +172,7 @@ int main (int argc, char** argv)
 
    Json::Reader reader;
    bool parsingSuccessful = reader.parse( paramsFile, params);
-   cout<< pfile.str() <<endl;
+   //cout<< pfile.str() <<endl;
   
    cout<<"Loading..."; 
    cout<<data_folder<<"...";
