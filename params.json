@@ -1,7 +1,6 @@
 {"selector" :{"planecut": 1, "box": 1}, 
  "prefilter":{"ON": 1, 
-              "bifil_sigR": 25, 
-              "bifil_sigS": 2, 
+              "bifil": {"sigR": 25, "sigS": 2}, 
               "SOR": {"N": 30, "th": 1}
              },
  "reg"      : {"file"      : "filtered",

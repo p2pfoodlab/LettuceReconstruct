@@ -209,12 +209,11 @@ int main (int argc, char** argv)
 
    if (params["prefilter"]["ON"].asBool()){
       cout<< "filtering" <<endl;
-      prefilters(pcloud, params["prefilter"]["bifil_sigR"].asFloat(), params["prefilter"]["bifil_sigS"].asFloat(),  params["prefilter"]["sor"]["N"].asInt(), params["prefilter"]["sor"]["th"].asFloat());   
+      prefilters(pcloud, params["prefilter"]["bifil"]["sigR"].asFloat(), params["prefilter"]["bifil"]["sigS"].asFloat(),  params["prefilter"]["SOR"]["N"].asInt(), params["prefilter"]["SOR"]["th"].asFloat());   
 
       ostringstream pcdfile_fil;
       pcdfile_fil<< svg << "/filtered/" << setfill('0') << setw(3) << k <<".pcd";
       cout<<pcdfile_fil.str()<<endl;
       pcl::io::savePCDFileASCII (pcdfile_fil.str(), pcloud);
    }
-
 }

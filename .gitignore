@@ -2,3 +2,4 @@ cpp/build
 data/*
 svg
 *.txt
+params.json

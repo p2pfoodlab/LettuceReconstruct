@@ -23,30 +23,39 @@ def gencloud(DATA, SVG, planecut=0,N=120):
       subprocess.call(["./cpp/build/cloudgen", DATA, SVG,str(i)])
 
 
-t0=time.time()
-name="/data/csl_feuillue/planecut"
-planecut=1
-N=12
-DATA,SVG=mkdirs(name)
-#gencloud(DATA, SVG, planecut, N)
-
-for k in range(10):
+def ICP_2params(par1, par2, i0, N, name):
+   DATA,SVG=mkdirs(name)
    pars=json.load(open("params.json"))
    pars["prefilter"]["ON"]=1
-   pars["prefilter"]["bifil_sigR"]=5+2*k
-   pars["selector"]["planecut"]=planecut
+   pars[par1["name"][0]][par1["name"][1]][par1["name"][2]]=par1["value"]
+   pars[par2["name"][0]][par2["name"][1]][par2["name"][2]]=par2["value"]
+   pars["selector"]["planecut"]=1
    json.dump(pars, open("%s/params.json"%SVG,'w'))
-   for i in range(N):
+
+   for i in range(i0,i0+N):
       print i 
       subprocess.call(["./cpp/build/cloudgen", DATA, SVG,str(i)])
    res=[]
-   i0=0
-   K=12   
-   for i in range(i0+1,i0+K):
+   for i in range(i0+1,i0+N):
       s=subprocess.check_output(["./cpp/build/cloudreg", SVG, SVG, str(i0), str(i)])
       res.append(np.array(s.split("\n")[:-1], dtype=np.float))
-   np.savetxt("ICPs_%s.txt"%pars["prefilter"]["SOR"]["N"], np.array(res))
+   res=np.array(res)   
+   np.savetxt("."+name+"/ICPs_%s_%s_%s_%s.txt"%(par1["name"][2],par1["value"],par2["name"][2],par2["value"]), res)
 
+      
+t0=time.time()
+name="/data/csl_feuillue/planecut"
+planecut=1
+N=6
+
+#p1={"name": ["prefilter", "bifil", "sigR"], "value": 2}
+#p2={"name": ["prefilter", "bifil", "sigR"], "value": 2}
+
+for i in range(3):
+   for j in range(3):
+      p1={"name": ["prefilter", "SOR", "N"], "value": 10*(i+1)}
+      p2={"name": ["prefilter", "SOR", "th"], "value": .5*(j+1)}
+      ICP_2params(p1, p2, 0, N, name)
 
 """
 for i in range(2): 
