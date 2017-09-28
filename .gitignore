@@ -1,5 +1,6 @@
 cpp/build
 data/*
+res/*
 svg
 *.txt
 params.json
